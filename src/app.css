@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "uplot/dist/uPlot.min.css";
+
+@theme {
+  --font-sans: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-brand-bg: #090d16;
+  --color-brand-card: #111827;
+  --color-brand-border: #1f2937;
+  --color-accent-gold: #d97706;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+/* Painel Neutro e Limpo */
+.glass-panel {
+  background: #111827;
+  border: 1px solid #1f2937;
+}
+
+.glass-panel-hover:hover {
+  border-color: #374151;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Personalização do uPlot (Estilo Flat / Neutro) */
+.uplot {
+  font-family: 'Outfit', sans-serif !important;
+}
+
+.u-legend {
+  color: #94a3b8 !important;
+  font-size: 12px !important;
+}
+
+.u-legend .u-marker {
+  border-radius: 50% !important;
+}

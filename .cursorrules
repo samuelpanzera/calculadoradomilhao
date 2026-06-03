@@ -1,0 +1,26 @@
+# Cursor Rules for Calculadora do Primeiro Milhão
+
+Welcome to the Calculadora do Primeiro Milhão repository. Please adhere to the following rules when modifying this codebase.
+
+## Technical Stack & Constraints
+- **Framework**: Svelte + TypeScript + Vite. No React, Vue, or other frameworks.
+- **Styling**: Vanilla CSS only. Avoid TailwindCSS unless explicitly requested by the user. Use HSL variables defined in `src/styles/theme.css` for clean design system tokens.
+- **Charts**: Use custom SVG graphics written in TypeScript and managed reatively by Svelte. Do not add high-weight charting libraries (e.g., Chart.js, Highcharts, ApexCharts) unless explicitly requested.
+- **Runtime**: Bun is preferred for dependency management and scripts.
+
+## Directory Structure
+- `src/components/`: Reusable Svelte components (e.g., `InputSection.svelte`, `Chart.svelte`).
+- `src/styles/`: Global stylesheet and theme tokens (`theme.css`).
+- `src/utils/`: Calculations and helper functions (e.g., `finance.ts`).
+- `docs/requisitos/`: Requirements documents (RF, RNF, rules).
+- `infra/`: Project infra configuration (Nginx proxy, Podman Quadlet container specifications).
+
+## VPS Infrastructure Rules (Crucial)
+- Follow all directions in `vps_specs.md` regarding port allocation and isolated multi-tenant deployment.
+- Never write hardcoded host IP mappings other than `127.0.0.1` inside containers.
+- Nginx configuration for reverse proxy must be in `infra/nginx/calculadoramilhao.conf`.
+- Systemd Podman Quadlet configurations must be in `infra/frontend/calculadoramilhao-frontend.container`.
+
+## SEO & Accessibility
+- Ensure the main keyword `"calculadora primeiro milhão"` is optimized in `index.html` (meta description, keywords, title, Open Graph, and Structured Data).
+- HTML must remain semantic and comply with WCAG AA accessibility standards (proper contrast, keyboard focus, ARIA labels for range inputs).

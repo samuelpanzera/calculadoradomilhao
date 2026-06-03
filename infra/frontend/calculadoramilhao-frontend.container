@@ -1,0 +1,21 @@
+[Unit]
+Description=Calculadora do Milhão Frontend Container
+After=network-online.target
+
+[Container]
+Image=ghcr.io/samuelpanzera/calculadoradomilhao:latest
+ContainerName=calculadoramilhao-frontend
+# Publish port locally on the host to 3200 mapping to port 80 inside the container
+PublishPort=127.0.0.1:3200:80
+# Enable systemd-managed auto-update for this container when image changes in registry
+AutoUpdate=registry
+# Pull the latest image
+Pull=always
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+# Pull this unit into multi-user target
+WantedBy=multi-user.target default.target

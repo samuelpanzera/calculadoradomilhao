@@ -1,0 +1,141 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies and build
+        run: |
+          if [ -f package.json ]; then
+            bun install
+            bun run build
+          else
+            echo "No package.json found. Creating a placeholder dist directory for validation..."
+            mkdir -p dist
+            echo "<h1>Calculadora do Milhão - Placeholder</h1>" > dist/index.html
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to VPS & Validate Nginx with Rollback
+        run: |
+          # 1. Create remote temporary work directory
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /tmp/deploy-calculadoramilhao"
+          
+          # 2. Transfer configurations to remote work directory
+          scp -o StrictHostKeyChecking=no infra/nginx/calculadoramilhao.conf ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/deploy-calculadoramilhao/calculadoramilhao.conf
+          scp -o StrictHostKeyChecking=no infra/frontend/calculadoramilhao-frontend.container ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/deploy-calculadoramilhao/calculadoramilhao-frontend.container
+          
+          # 3. Connect via SSH to perform atomic updates and restart services
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            set -e
+            
+            # Setup necessary directories
+            sudo mkdir -p /etc/nginx/conf.d
+            sudo mkdir -p /etc/containers/systemd
+            
+            # Define Nginx configuration files
+            NGINX_CONF="/etc/nginx/conf.d/calculadoramilhao.conf"
+            NGINX_BACKUP="/etc/nginx/conf.d/calculadoramilhao.conf.bak"
+            
+            # Backup the existing config if it exists
+            if [ -f "$NGINX_CONF" ]; then
+              echo "Backing up existing Nginx configuration..."
+              sudo cp "$NGINX_CONF" "$NGINX_BACKUP"
+            fi
+            
+            # Copy new configuration to the live path
+            echo "Applying new Nginx configuration..."
+            sudo cp /tmp/deploy-calculadoramilhao/calculadoramilhao.conf "$NGINX_CONF"
+            
+            # Test Nginx configuration for syntax errors
+            echo "Testing Nginx configuration..."
+            if sudo nginx -t; then
+              echo "Nginx configuration is valid. Reloading Nginx..."
+              # Delete the backup as new configuration is healthy
+              if [ -f "$NGINX_BACKUP" ]; then
+                sudo rm "$NGINX_BACKUP"
+              fi
+              sudo systemctl reload nginx
+            else
+              echo "CRITICAL: Nginx configuration test failed! Restoring backup configuration..."
+              if [ -f "$NGINX_BACKUP" ]; then
+                sudo mv "$NGINX_BACKUP" "$NGINX_CONF"
+              else
+                sudo rm "$NGINX_CONF"
+              fi
+              
+              # Re-validate that the reverted configuration is functional
+              sudo nginx -t
+              
+              # Cleanup and abort deploy
+              sudo rm -rf /tmp/deploy-calculadoramilhao
+              echo "Deployment aborted due to Nginx validation failure."
+              exit 1
+            fi
+            
+            # 4. Deploy Quadlet container configuration
+            echo "Applying Quadlet configuration..."
+            sudo cp /tmp/deploy-calculadoramilhao/calculadoramilhao-frontend.container /etc/containers/systemd/calculadoramilhao-frontend.container
+            
+            # 5. Reload systemd daemon to pick up the updated Quadlet definition
+            echo "Reloading systemd daemon..."
+            sudo systemctl daemon-reload
+            
+            # 6. Restart/Start the systemd unit created by Quadlet
+            echo "Restarting service: calculadoramilhao-frontend..."
+            sudo systemctl restart calculadoramilhao-frontend
+            
+            # Cleanup temporary deployment directory
+            sudo rm -rf /tmp/deploy-calculadoramilhao
+            echo "Deployment finished successfully!"
+          EOF
