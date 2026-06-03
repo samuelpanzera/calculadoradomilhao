@@ -64,19 +64,19 @@ jobs:
       - name: Configure SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
       - name: Deploy to VPS & Validate Nginx with Rollback
         run: |
           # 1. Create remote temporary work directory
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /tmp/deploy-calculadoramilhao"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /tmp/deploy-calculadoramilhao"
           
           # 2. Transfer configurations to remote work directory
-          scp -o StrictHostKeyChecking=no infra/nginx/calculadoramilhao.conf ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/deploy-calculadoramilhao/calculadoramilhao.conf
-          scp -o StrictHostKeyChecking=no infra/frontend/calculadoramilhao-frontend.container ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/deploy-calculadoramilhao/calculadoramilhao-frontend.container
+          scp -o StrictHostKeyChecking=no infra/nginx/calculadoramilhao.conf ${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/tmp/deploy-calculadoramilhao/calculadoramilhao.conf
+          scp -o StrictHostKeyChecking=no infra/frontend/calculadoramilhao-frontend.container ${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }}:/tmp/deploy-calculadoramilhao/calculadoramilhao-frontend.container
           
           # 3. Connect via SSH to perform atomic updates and restart services
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_SSH_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             set -e
             
             # Setup necessary directories
