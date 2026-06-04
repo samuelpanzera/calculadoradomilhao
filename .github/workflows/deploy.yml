@@ -115,8 +115,7 @@ jobs:
                 echo "SSL Certificate appears to be missing. Bootstrapping with HTTP-only configuration..."
                 
                 # Write a temporary HTTP-only configuration to tmp directory
-                cat << 'EOF_HTTP' > /tmp/deploy-calculadoramilhao/http.conf
-                server {
+                echo 'server {
                     listen 80;
                     listen [::]:80;
                     server_name calculadoramilhao.com.br www.calculadoramilhao.com.br;
@@ -132,8 +131,7 @@ jobs:
                         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                         proxy_set_header X-Forwarded-Proto $scheme;
                     }
-                }
-                EOF_HTTP
+                }' > /tmp/deploy-calculadoramilhao/http.conf
 
                 # Copy HTTP configuration to the live Nginx path
                 sudo cp /tmp/deploy-calculadoramilhao/http.conf "$NGINX_CONF"
