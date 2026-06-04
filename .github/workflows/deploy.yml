@@ -143,7 +143,7 @@ jobs:
                   
                   # Attempt to run acme.sh to issue the certificate automatically
                   echo "Attempting to issue SSL Certificate using acme.sh..."
-                  if sudo -n /root/.acme.sh/acme.sh --issue -d calculadoramilhao.com.br -d www.calculadoramilhao.com.br -w /var/www/html --ecc; then
+                  if sudo -n /root/.acme.sh/acme.sh --issue -d calculadoramilhao.com.br -d www.calculadoramilhao.com.br -w /var/www/html --ecc --server letsencrypt; then
                     echo "SSL Certificate issued successfully! Re-applying full HTTPS Nginx configuration..."
                     sudo cp /tmp/deploy-calculadoramilhao/calculadoramilhao.conf "$NGINX_CONF"
                     if sudo nginx -t; then
@@ -166,7 +166,7 @@ jobs:
                     echo "This might be due to sudo permissions or DNS propagation delays."
                     echo "Nginx is running in HTTP-only mode so that the ACME challenge can be met."
                     echo "Please log into the VPS as root and run the following command manually:"
-                    echo "  sudo /root/.acme.sh/acme.sh --issue -d calculadoramilhao.com.br -d www.calculadoramilhao.com.br -w /var/www/html --ecc"
+                    echo "  sudo /root/.acme.sh/acme.sh --issue -d calculadoramilhao.com.br -d www.calculadoramilhao.com.br -w /var/www/html --ecc --server letsencrypt"
                     echo "Once done, re-trigger this deployment to enable HTTPS."
                     echo "=========================================================================="
                   fi
