@@ -99,7 +99,10 @@ jobs:
             
             # Test Nginx configuration for syntax errors
             echo "Testing Nginx configuration..."
-            if sudo nginx -t; then
+            NGINX_TEST_OUT=$(sudo nginx -t 2>&1 || true)
+            echo "$NGINX_TEST_OUT"
+            
+            if echo "$NGINX_TEST_OUT" | grep -q "syntax is ok" && echo "$NGINX_TEST_OUT" | grep -q "test is successful"; then
               echo "Nginx configuration is valid. Reloading Nginx..."
               # Delete the backup as new configuration is healthy
               if [ -f "$NGINX_BACKUP" ]; then
@@ -107,20 +110,90 @@ jobs:
               fi
               sudo systemctl reload nginx
             else
-              echo "CRITICAL: Nginx configuration test failed! Restoring backup configuration..."
-              if [ -f "$NGINX_BACKUP" ]; then
-                sudo mv "$NGINX_BACKUP" "$NGINX_CONF"
+              # If config test failed, check if it's due to missing SSL certificate
+              if echo "$NGINX_TEST_OUT" | grep -q -E "cannot load certificate|No such file or directory"; then
+                echo "SSL Certificate appears to be missing. Bootstrapping with HTTP-only configuration..."
+                
+                # Write a temporary HTTP-only configuration to tmp directory
+                cat << 'EOF_HTTP' > /tmp/deploy-calculadoramilhao/http.conf
+server {
+    listen 80;
+    listen [::]:80;
+    server_name calculadoramilhao.com.br www.calculadoramilhao.com.br;
+
+    location /.well-known/acme-challenge/ {
+        alias /var/www/html/.well-known/acme-challenge/;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3200;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF_HTTP
+
+                # Copy HTTP configuration to the live Nginx path
+                sudo cp /tmp/deploy-calculadoramilhao/http.conf "$NGINX_CONF"
+                
+                echo "Testing temporary HTTP configuration..."
+                if sudo nginx -t; then
+                  echo "Temporary HTTP configuration is valid. Reloading Nginx..."
+                  sudo systemctl reload nginx
+                  
+                  # Attempt to run acme.sh to issue the certificate automatically
+                  echo "Attempting to issue SSL Certificate using acme.sh..."
+                  if sudo -n /root/.acme.sh/acme.sh --issue -d calculadoramilhao.com.br -d www.calculadoramilhao.com.br -w /var/www/html --ecc; then
+                    echo "SSL Certificate issued successfully! Re-applying full HTTPS Nginx configuration..."
+                    sudo cp /tmp/deploy-calculadoramilhao/calculadoramilhao.conf "$NGINX_CONF"
+                    if sudo nginx -t; then
+                      sudo systemctl reload nginx
+                      echo "Successfully upgraded to HTTPS!"
+                      if [ -f "$NGINX_BACKUP" ]; then
+                        sudo rm "$NGINX_BACKUP"
+                      fi
+                    else
+                      echo "CRITICAL: Re-applying HTTPS config failed after successful certificate issue!"
+                      if [ -f "$NGINX_BACKUP" ]; then
+                        sudo mv "$NGINX_BACKUP" "$NGINX_CONF"
+                      fi
+                      sudo nginx -t && sudo systemctl reload nginx
+                      exit 1
+                    fi
+                  else
+                    echo "=========================================================================="
+                    echo "WARNING: Could not automatically issue SSL certificate via acme.sh."
+                    echo "This might be due to sudo permissions or DNS propagation delays."
+                    echo "Nginx is running in HTTP-only mode so that the ACME challenge can be met."
+                    echo "Please log into the VPS as root and run the following command manually:"
+                    echo "  sudo /root/.acme.sh/acme.sh --issue -d calculadoramilhao.com.br -d www.calculadoramilhao.com.br -w /var/www/html --ecc"
+                    echo "Once done, re-trigger this deployment to enable HTTPS."
+                    echo "=========================================================================="
+                  fi
+                else
+                  echo "CRITICAL: Temporary HTTP configuration failed! Restoring backup..."
+                  if [ -f "$NGINX_BACKUP" ]; then
+                    sudo mv "$NGINX_BACKUP" "$NGINX_CONF"
+                  else
+                    sudo rm "$NGINX_CONF"
+                  fi
+                  sudo nginx -t && sudo systemctl reload nginx
+                  exit 1
+                fi
               else
-                sudo rm "$NGINX_CONF"
+                echo "CRITICAL: Nginx configuration test failed for another reason! Restoring backup..."
+                if [ -f "$NGINX_BACKUP" ]; then
+                  sudo mv "$NGINX_BACKUP" "$NGINX_CONF"
+                else
+                  sudo rm "$NGINX_CONF"
+                fi
+                sudo nginx -t
+                sudo rm -rf /tmp/deploy-calculadoramilhao
+                echo "Deployment aborted due to Nginx validation failure."
+                exit 1
               fi
-              
-              # Re-validate that the reverted configuration is functional
-              sudo nginx -t
-              
-              # Cleanup and abort deploy
-              sudo rm -rf /tmp/deploy-calculadoramilhao
-              echo "Deployment aborted due to Nginx validation failure."
-              exit 1
             fi
             
             # 4. Deploy Quadlet container configuration
