@@ -231,6 +231,7 @@
           
           <input 
             type="range" 
+            aria-label="Linha do Tempo em Meses"
             min={12} 
             max={600} 
             step={12} 

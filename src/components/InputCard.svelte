@@ -75,6 +75,7 @@
     {/if}
     <input 
       type="number" 
+      aria-label={label}
       {min} 
       {max} 
       {step} 
